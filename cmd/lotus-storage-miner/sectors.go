@@ -59,7 +59,35 @@ var sectorsPledgeCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := lcli.ReqContext(cctx)
+		//通过nodeApi 获取当前的worker的WorkerStats的信息
+		stats, err := nodeApi.WorkerStats(ctx)
+		if err != nil {
+			return err
+		}
 
+		limit := 0
+		running := 0
+		disabled := 0
+		//遍历当前worker的状态参数
+		for _, stat := range stats {
+			if stat.Enabled { //只判断可用的worker
+				limit += stat.Info.TaskNumber.LimitPC1Count
+				running += stat.Info.TaskNumber.RunPC1Count
+
+				//如果当前worker的RunPC1Count=13，正好检查到IsRunningAP=true，那么running++=14.
+				//running >= limit 就是 14 >=14了，就不能发AP了
+				if stat.Info.TaskNumber.IsRunningAP {
+					running++
+				}
+			} else {
+				disabled++
+			}
+		}
+
+		if running >= limit {
+			fmt.Printf("任务[%d/%d], 本次质押暂停.\n掉线worker[%d]\n", running, limit, disabled)
+			return nil
+		}
 		id, err := nodeApi.PledgeSector(ctx)
 		if err != nil {
 			return err

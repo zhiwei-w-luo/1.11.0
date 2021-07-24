@@ -173,7 +173,7 @@ func New(ctx context.Context, lstor *stores.Local, stor *stores.Remote, ls store
 		IgnoreResourceFiltering: sc.ResourceFiltering == ResourceFilteringDisabled,
 		TaskTypes:               localTasks,
 	}
-	worker := NewLocalWorker(wcfg, stor, lstor, si, m, wss)
+	worker := NewLocalWorker(wcfg, stor, lstor, si, m, wss, 0)
 	err = m.AddWorker(ctx, worker)
 	if err != nil {
 		return nil, xerrors.Errorf("adding local worker: %w", err)
@@ -395,7 +395,7 @@ func (m *Manager) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 		return storage.SectorCids{}, xerrors.Errorf("acquiring sector lock: %w", err)
 	}
 
-	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, true)
+	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, false)
 
 	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit2, selector, m.schedFetch(sector, storiface.FTCache|storiface.FTSealed, storiface.PathSealing, storiface.AcquireMove), func(ctx context.Context, w Worker) error {
 		err := m.startWork(ctx, w, wk)(w.SealPreCommit2(ctx, sector, phase1Out))

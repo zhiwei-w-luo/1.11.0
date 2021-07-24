@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,7 +24,11 @@ type WorkerInfo struct {
 	// task assignment. Only supported on local workers. Used for testing.
 	// Default should be false (zero value, i.e. resources taken into account).
 	IgnoreResources bool
+	// Resources       WorkerResources
 	Resources       WorkerResources
+	TaskResourcesLk sync.Mutex
+	TaskNumber      TaskConfig //限制进程PC1	数量
+
 }
 
 type WorkerResources struct {
@@ -146,4 +151,62 @@ type WorkerReturn interface {
 	ReturnUnsealPiece(ctx context.Context, callID CallID, err *CallError) error
 	ReturnReadPiece(ctx context.Context, callID CallID, ok bool, err *CallError) error
 	ReturnFetch(ctx context.Context, callID CallID, err *CallError) error
+}
+
+//下面都是Dai加的内容
+type TaskConfig struct {
+	LimitPC1Count int  //限制的PC1总数
+	RunPC1Count   int  //正在跑的PC1数量
+	IsRunningAP   bool //是否正在跑ap
+}
+
+//空闲的任务数量
+func (w *WorkerInfo) GetFreeTaskNumber(phaseTaskType sealtasks.TaskType) int {
+	w.TaskResourcesLk.Lock()
+	defer w.TaskResourcesLk.Unlock()
+	switch phaseTaskType {
+	case sealtasks.TTAddPiece:
+		if w.TaskNumber.IsRunningAP {
+			return 0
+		} else {
+			return 1
+		}
+	case sealtasks.TTPreCommit1:
+		return w.TaskNumber.LimitPC1Count - w.TaskNumber.RunPC1Count
+	}
+	return 0
+}
+
+//接受任务时+1
+func (w *WorkerInfo) TaskAddOne(phaseTaskType sealtasks.TaskType) {
+	w.TaskResourcesLk.Lock()
+	defer w.TaskResourcesLk.Unlock()
+	switch phaseTaskType {
+	case sealtasks.TTAddPiece:
+		w.TaskNumber.IsRunningAP = true
+	case sealtasks.TTPreCommit1:
+		w.TaskNumber.RunPC1Count++
+	}
+}
+
+//完成任务时-1
+func (w *WorkerInfo) TaskReduceOne(phaseTaskType sealtasks.TaskType) {
+	w.TaskResourcesLk.Lock()
+	defer w.TaskResourcesLk.Unlock()
+	switch phaseTaskType {
+	case sealtasks.TTAddPiece:
+		w.TaskNumber.IsRunningAP = false
+	case sealtasks.TTPreCommit1:
+		if w.TaskNumber.RunPC1Count > 0 {
+			w.TaskNumber.RunPC1Count--
+		}
+	}
+}
+
+func NewTaskConfig(LimitPC1Count int) TaskConfig {
+	return TaskConfig{
+		LimitPC1Count: LimitPC1Count,
+		RunPC1Count:   0,
+		IsRunningAP:   false,
+	}
 }

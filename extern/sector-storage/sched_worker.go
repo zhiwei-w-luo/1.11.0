@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	sealtasks "github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 	"github.com/filecoin-project/lotus/extern/sector-storage/stores"
 )
 
@@ -204,7 +205,7 @@ func (sw *schedWorker) disable(ctx context.Context) error {
 
 func (sw *schedWorker) checkSession(ctx context.Context) bool {
 	for {
-		sctx, scancel := context.WithTimeout(ctx, stores.HeartbeatInterval/2)
+		sctx, scancel := context.WithTimeout(ctx, stores.HeartbeatInterval)
 		curSes, err := sw.worker.workerRpc.Session(sctx)
 		scancel()
 		if err != nil {
@@ -407,6 +408,11 @@ func (sw *schedWorker) startProcessingTask(taskDone chan struct{}, req *workerRe
 			w.lk.Unlock()
 			sh.workersLk.Unlock()
 
+			if req.taskType == sealtasks.TTPreCommit1 || req.taskType == sealtasks.TTAddPiece {
+				log.Infof("worker[%v] 任务[%s] 前置任务-1", sw.wid, req.taskType)
+				w.info.TaskReduceOne(req.taskType)
+			}
+
 			select {
 			case taskDone <- struct{}{}:
 			case <-sh.closing:
@@ -438,6 +444,11 @@ func (sw *schedWorker) startProcessingTask(taskDone chan struct{}, req *workerRe
 
 			// Do the work!
 			err = req.work(req.ctx, sh.workTracker.worker(sw.wid, w.info, w.workerRpc))
+
+			if req.taskType == sealtasks.TTPreCommit1 || req.taskType == sealtasks.TTAddPiece {
+				log.Infof("woker[%v]  任务[%s]-1", sw.wid, req.taskType)
+				w.info.TaskReduceOne(req.taskType)
+			}
 
 			select {
 			case req.ret <- workerResponse{err: err}:

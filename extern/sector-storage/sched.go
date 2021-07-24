@@ -21,7 +21,7 @@ type schedPrioCtxKey int
 
 var SchedPriorityKey schedPrioCtxKey
 var DefaultSchedPriority = 0
-var SelectorTimeout = 5 * time.Second
+var SelectorTimeout = 10 * time.Second
 var InitWait = 3 * time.Second
 
 var (
@@ -401,7 +401,7 @@ func (sh *scheduler) trySched() {
 				ok, err := task.sel.Ok(rpcCtx, task.taskType, task.sector.ProofType, worker)
 				cancel()
 				if err != nil {
-					log.Errorf("trySched(1) req.sel.Ok error: %+v", err)
+					// log.Errorf("trySched(1) req.sel.Ok error: %+v", err)
 					continue
 				}
 
@@ -469,6 +469,21 @@ func (sh *scheduler) trySched() {
 				continue
 			}
 
+			//如果woker空闲数量不够则跳过这个worker
+			worker, ok := sh.workers[wid]
+			if !ok {
+				log.Errorf("worker referenced by windowRequest not found (worker: %s)", wid)
+				// TODO: How to move forward here?
+				continue
+			}
+
+			//获取闲置任务数量
+			if task.taskType == sealtasks.TTPreCommit1 || task.taskType == sealtasks.TTAddPiece {
+				if worker.info.GetFreeTaskNumber(task.taskType) <= 0 {
+					continue
+				}
+			}
+
 			log.Debugf("SCHED ASSIGNED sqi:%d sector %d task %s to window %d", sqi, task.sector.ID.Number, task.taskType, wnd)
 
 			windows[wnd].allocated.add(info.Resources, needRes)
@@ -477,6 +492,10 @@ func (sh *scheduler) trySched() {
 			//  task selectors, but not in the same way, so need to figure out how to do that in a non-O(n^2 way), and
 			//  without additional network roundtrips (O(n^2) could be avoided by turning acceptableWindows.[] into heaps))
 
+			if task.taskType == sealtasks.TTPreCommit1 || task.taskType == sealtasks.TTAddPiece {
+				log.Debugf("woker[%v[%v]] 任务[%s]++++++1", worker.info.Hostname, wid, task.taskType)
+				worker.info.TaskAddOne(task.taskType)
+			}
 			selectedWindow = wnd
 			break
 		}

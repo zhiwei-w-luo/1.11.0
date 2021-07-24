@@ -81,7 +81,7 @@ var sealingWorkersCmd = &cli.Command{
 				disabled = color.RedString(" (disabled)")
 			}
 
-			fmt.Printf("Worker %s, host %s%s\n", stat.id, color.MagentaString(stat.Info.Hostname), disabled)
+			fmt.Printf("Worker %s, host %s%s, task %d/%d\n", stat.id, color.MagentaString(stat.Info.Hostname), disabled, stat.Info.TaskNumber.RunPC1Count, stat.Info.TaskNumber.LimitPC1Count)
 
 			var barCols = uint64(64)
 			cpuBars := int(stat.CpuUse * barCols / stat.Info.Resources.CPUs)
