@@ -6,10 +6,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"math/bits"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/partialfile"
 	"github.com/ipfs/go-cid"
@@ -45,7 +47,7 @@ func (sb *Sealer) NewSector(ctx context.Context, sector storage.SectorRef) error
 	return nil
 }
 
-+func (sb *Sealer) myAddPiece(ctx context.Context, sector storage.SectorRef, pieceSize abi.UnpaddedPieceSize) (abi.PieceInfo, error) {
+func (sb *Sealer) myAddPiece(ctx context.Context, sector storage.SectorRef, pieceSize abi.UnpaddedPieceSize) (abi.PieceInfo, error) {
 	var done func()
 	var pieceInfo abi.PieceInfo
 
@@ -318,7 +320,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storage.SectorRef, existi
 	}
 
 	sb.createTemplateFile(stagedPath.Unsealed, pieceSize, pieceCID)
-	
+
 	return abi.PieceInfo{
 		Size:     pieceSize.Padded(),
 		PieceCID: pieceCID,
